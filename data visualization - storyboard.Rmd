@@ -1,0 +1,234 @@
+---
+title: "Is there difference in annual income of Male and Female in the USA?"
+author: "Radhika Zawar"
+output: 
+  flexdashboard::flex_dashboard:
+    storyboard : TRUE
+    vertical_layout: fill
+---
+
+<h4 style="font-size:16px;font-family:verdana;">A research data by Bureau of Labor Statistics, January 2015</h4>
+
+<h4 style="font-size:14px;font-family:verdana;" href = "https://www.kaggle.com/jonavery/incomes-by-career-and-gender/data">Data Source: U.S. Incomes by Occupation and Gender. (https://www.kaggle.com/jonavery/incomes-by-career-and-gender/data) </h4>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyr)
+library(stringr)
+library(xlsx)
+library(plotly)
+
+library(plyr)
+library(dplyr)
+library(ggplot2)
+
+#loading the datafile
+job_role_data <- read.csv("inc_occ_gender.csv", stringsAsFactors = FALSE)
+
+#These three attributes are supposed to be numeric but they are loaded as char so converting them in numeric
+job_role_data$All_weekly <- as.numeric(job_role_data$All_weekly)
+job_role_data$M_weekly <- as.numeric(job_role_data$M_weekly)
+job_role_data$F_weekly <- as.numeric(job_role_data$F_weekly)
+sapply(job_role_data,class)
+
+# dropping NA values
+job_role_data <- na.omit(job_role_data)
+
+# adding more attributes to simplify the data for the storytelling purpose
+#M_yearly is added to provide annual income of Male
+job_role_data <- job_role_data %>% mutate(M_yearly = M_weekly*52.1429,
+                         F_yearly = F_weekly*52.1429,
+                         pay_gap = M_yearly - F_yearly)
+
+# creating new values to be used
+Occupation_data <- job_role_data %>%
+  select(Occupation,M_weekly,F_weekly, M_yearly,F_yearly,pay_gap) %>%
+  filter(str_detect(str_to_upper(Occupation),Occupation))
+
+# ordered by highest annual pay to lowest
+Occupation_data_ordered <- Occupation_data[order(Occupation_data$F_yearly),]
+
+
+
+```
+
+### Differences in annual income across industries
+
+```{r}
+
+fig <- plot_ly(data = Occupation_data_ordered,
+               x = Occupation_data_ordered$M_yearly,
+               y = Occupation_data_ordered$Occupation,
+               type = 'scatter',
+               mode = 'markers',
+               name = 'Male',
+               color = I("#244CE3"),
+               text = Occupation_data_ordered$Occupation,
+               textposition = "auto",
+               hoverinfo = "text",
+               hovertext = paste(
+                 "Male Income<br>Industry : ", Occupation_data_ordered$Occupation,
+                 "<br> Avg : $", round(Occupation_data_ordered$M_yearly)))
+
+
+fig <- fig %>% add_trace(data = Occupation_data_ordered,
+                         x = Occupation_data_ordered$F_yearly,
+                         y = Occupation_data_ordered$Occupation,
+                         name = 'Female',
+                         color = I("#F445A4"),
+                         text = Occupation_data_ordered$Occupation,
+                         textposition = "auto",
+                         hoverinfo = "text",
+                         hovertext = paste(
+                           "Female Income<br>Industry : ", Occupation_data_ordered$Occupation,
+                           "<br> Avg : $", round(Occupation_data_ordered$F_yearly)))
+
+fig <- fig %>% add_segments(x = Occupation_data_ordered$M_yearly,
+                            xend = Occupation_data_ordered$F_yearly,
+                            y = Occupation_data_ordered$Occupation,
+                            yend = Occupation_data_ordered$Occupation,
+                            alpha = 0.5, size = I(1),
+                            color = I("black"),
+                            text = Occupation_data_ordered$Occupation,
+                            textposition = "auto",
+                            hoverinfo = "text",
+                            hovertext = paste(
+                             "Income Gap<br>Industry : ", Occupation_data_ordered$Occupation,
+                             "<br> Avg : $", round(Occupation_data_ordered$pay_gap)),
+                            showlegend = TRUE,
+                            name = "Income Difference")
+
+fig <- fig %>% layout( title = "US Gender Pay difference by Industry, Jan 2015",
+                       xaxis = list(title = "Annual pay",
+                                   categoryorder = "array",
+                                   categoryarray = ~Occupation))
+
+fig <- fig %>% layout(yaxis = list(categoryorder = "array",
+                                   categoryarray = Occupation_data_ordered$Occupation))
+
+
+fig
+
+```
+
+
+### Average difference in weekly income
+
+```{r}
+
+
+density1 <- density(job_role_data$F_weekly)
+
+density2 <- density(job_role_data$M_weekly)
+
+gap <- mean(job_role_data$M_weekly) - mean(job_role_data$F_weekly)
+
+
+
+
+
+fig <- plot_ly(data = job_role_data,
+               x = ~density1$x, 
+               y = ~density1$y, 
+               type = 'scatter', 
+               mode = 'none', 
+               name = 'Female', 
+               fill = 'tozeroy',
+               fillcolor = 'rgba(249, 161, 209, 0.5)') 
+
+fig <- fig %>% add_trace(x = ~density2$x, 
+                         y = ~density2$y, 
+                         name = 'Male', 
+                         fill = 'tozeroy',
+                         fillcolor = 'rgba(105, 129, 220, 0.5)') 
+
+fig <- fig %>% layout(xaxis = list(title = 'Weekly Income in USD', 
+                                   tickvals = c(0,500, 1000, 1500, 2000, 2500), 
+                                   ticktext = c("$0","$500", "$1000", "$1500", "$2000", "$2500")),
+                      yaxis = list(title = 'Density'),
+                      legend = list(x = 1, y = 0.95),
+                      title = "General Salary Difference in weekly income of Male and Female (Jan, 2015)")
+  
+  
+fig <- fig %>%  add_segments(x = mean(job_role_data$F_weekly),
+                            xend = mean(job_role_data$F_weekly),
+                            y = 0,
+                            yend = 0.0005,
+                            alpha = 1.2, size = I(1),
+                            color = I("#F445A4"),
+                            name = "Female Average Income",
+                            text = mean(Occupation_data_ordered$F_weekly),
+                            textposition = "top left",
+                            hoverinfo = "text",
+                            hovertext = paste(
+                             "Female Income<br>Average : $", round(mean(Occupation_data_ordered$F_weekly), digits=2))) 
+  
+fig <- fig %>%  add_segments(x = mean(job_role_data$M_weekly),
+                            xend = mean(job_role_data$M_weekly),
+                            y = 0,
+                            yend = 0.0005,
+                            alpha = 1.2, size = I(1),
+                            color = I("#244CE3"),
+                            name = "Male Average Income ",
+                            text = mean(Occupation_data_ordered$M_weekly),
+                            textposition = "top right",
+                            hoverinfo = "text",
+                            hovertext = paste(
+                             "Male Income<br>Average : $", round(mean(Occupation_data_ordered$M_weekly), digits=2))) 
+
+
+fig
+
+```
+
+### Roles with least difference
+
+```{r}
+
+# ordered by highest annual pay to lowest
+Occupation_pay_gap <- job_role_data[order(job_role_data$pay_gap),]
+
+Occupation_pay_gap <- Occupation_pay_gap[1:15,]
+
+
+
+fig <- plot_ly(data = Occupation_pay_gap, 
+               type = "bar", 
+               x=Occupation_pay_gap$pay_gap, 
+               y=Occupation_pay_gap$Occupation, orientation="h",
+               color = ~pay_gap < 0, colors = c("#244CE3", "#F445A4"), alpha = 0.5,
+                name = ~ifelse(pay_gap < 0, "Higher Income for Female", "Higher Income for Male")) 
+
+fig <- fig %>% layout(yaxis = list(categoryorder = "array",
+                                   categoryarray = Occupation_pay_gap$Occupation),
+                      title = 'Roles where woman have better or almost equal salaries (Jan, 2015)',
+                      
+                      yaxis = list(title = "Roles"),
+                      xaxis = list(title = "Difference in annual income in USD. Left of $0 : Female earn more & Right of $0 : Male earn more",
+                      tickvals = c(-5000,-4000, -3000, -2000, -1000, 0, 1000), 
+                      ticktext = c("$5000","$4000", "$3000", "$2000", "$1000", "$0", "$1000")),
+                      legend = list(x = 0.2, y = 0.95))
+
+fig
+
+```  
+ 
+ <style>
+
+    .storyboard-nav .sbframelist {
+        margin: 0 auto;
+        width: 94%;
+        height: 50px;
+        overflow: hidden;
+        text-shadow: none;
+        margin-bottom: 8px;
+    }
+
+    .storyboard-nav .sbnext, .storyboard-nav .sbprev {
+        float: left;
+        width: 2%;
+        height: 50px;
+        font-size: 50px;
+    }
+
+    </style>
