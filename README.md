@@ -5,3 +5,4 @@ Data Source : https://www.kaggle.com/jonavery/incomes-by-career-and-gender/data
 
 This code is written to design visualisation from the dataset and present information to general audiance to prove the pay gap in the United states.
 
+libraries -> flexdashboard, tidyr, stringr, xlsx, plotly, plyr, dplyr, ggplot2
